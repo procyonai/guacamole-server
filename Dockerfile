@@ -45,6 +45,8 @@ RUN apk add --no-cache                \
         pulseaudio-dev                \
         util-linux-dev
 
+RUN apk update && apk add --no-cache ffmpeg-dev
+
 # Copy source to container for sake of build
 ARG BUILD_DIR=/tmp/guacamole-server
 COPY . ${BUILD_DIR}
@@ -83,7 +85,7 @@ ARG FREERDP_OPTS="\
     -DWITH_CLIENT=ON \
     -DWITH_CUPS=OFF \
     -DWITH_DIRECTFB=OFF \
-    -DWITH_FFMPEG=OFF \
+    -DWITH_FFMPEG=ON \
     -DWITH_GSM=OFF \
     -DWITH_GSSAPI=OFF \
     -DWITH_IPP=OFF \
