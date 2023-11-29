@@ -180,6 +180,8 @@ RUN apk add --no-cache                \
         util-linux-login && \
     xargs apk add --no-cache < ${PREFIX_DIR}/DEPENDENCIES
 
+RUN apk update && apk add --no-cache ffmpeg-dev
+
 # Checks the operating status every 5 minutes with a timeout of 5 seconds
 HEALTHCHECK --interval=5m --timeout=5s CMD nc -z 127.0.0.1 4822 || exit 1
 
@@ -188,6 +190,9 @@ ARG UID=1000
 ARG GID=1000
 RUN groupadd --gid $GID guacd
 RUN useradd --system --create-home --shell /sbin/nologin --uid $UID --gid $GID guacd
+
+RUN mkdir -p /var/lib/guacamole/recordings
+RUN chown -R guacd:guacd /var/lib/guacamole/recordings
 
 # Run with user guacd
 USER guacd
@@ -201,4 +206,3 @@ EXPOSE 4822
 # PREFIX_DIR build argument.
 #
 CMD /opt/guacamole/sbin/guacd -b 0.0.0.0 -L $GUACD_LOG_LEVEL -f
-
