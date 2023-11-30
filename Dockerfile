@@ -157,7 +157,8 @@ ENV PATH /go/bin:$PATH
 
 RUN mkdir -p ${GOPATH}/src ${GOPATH}/bin
 
-RUN go run ${BUILD_DIR}/src/procyon-agent/main.go
+RUN go build ${BUILD_DIR}/src/procyon-agent/main.go -o ${PREFIX_DIR}/procyon-agent
+RUN cp ${BUILD_DIR}/src/guacd-docker/entrypoint.sh ${PREFIX_DIR}/entrypoint.sh
 
 # Use same Alpine version as the base for the runtime image
 FROM alpine:${ALPINE_BASE_IMAGE}
@@ -203,17 +204,17 @@ RUN groupadd --gid $GID guacd
 RUN useradd --system --create-home --shell /sbin/nologin --uid $UID --gid $GID guacd
 
 RUN mkdir -p /var/lib/guacamole/recordings
-RUN chown -R guacd:guacd /var/lib/guacamole/recordings
 
 # Run with user guacd
 USER guacd
 
 # Expose the default listener port
 EXPOSE 4822
+EXPOSE 8123
 
 # Start guacd, listening on port 0.0.0.0:4822
 #
 # Note the path here MUST correspond to the value specified in the 
 # PREFIX_DIR build argument.
 #
-CMD /opt/guacamole/sbin/guacd -b 0.0.0.0 -L $GUACD_LOG_LEVEL -f
+CMD /opt/guacamole/entrypoint.sh
