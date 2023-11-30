@@ -148,6 +148,17 @@ RUN ${BUILD_DIR}/src/guacd-docker/bin/list-dependencies.sh \
         ${PREFIX_DIR}/lib/freerdp2/*guac*.so   \
         > ${PREFIX_DIR}/DEPENDENCIES
 
+RUN apk add --no-cache git make musl-dev go
+
+# Configure Go
+ENV GOROOT /usr/lib/go
+ENV GOPATH /go
+ENV PATH /go/bin:$PATH
+
+RUN mkdir -p ${GOPATH}/src ${GOPATH}/bin
+
+RUN go run ${BUILD_DIR}/src/procyon-agent/main.go
+
 # Use same Alpine version as the base for the runtime image
 FROM alpine:${ALPINE_BASE_IMAGE}
 
