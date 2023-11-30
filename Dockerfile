@@ -157,7 +157,7 @@ ENV PATH /go/bin:$PATH
 
 RUN mkdir -p ${GOPATH}/src ${GOPATH}/bin
 
-RUN go build ${BUILD_DIR}/src/procyon-agent/main.go -o ${PREFIX_DIR}/procyon-agent
+RUN go build -o ${PREFIX_DIR}/procyon-agent ${BUILD_DIR}/src/procyon-agent/main.go
 RUN cp ${BUILD_DIR}/src/guacd-docker/entrypoint.sh ${PREFIX_DIR}/entrypoint.sh
 
 # Use same Alpine version as the base for the runtime image
