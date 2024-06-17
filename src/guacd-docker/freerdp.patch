@@ -1,0 +1,147 @@
+diff --git a/libfreerdp/core/tcp.c b/libfreerdp/core/tcp.c
+index 0d0641b82..dff2af99e 100644
+--- a/libfreerdp/core/tcp.c
++++ b/libfreerdp/core/tcp.c
+@@ -787,7 +787,7 @@ struct addrinfo* freerdp_tcp_resolve_host(const char* hostname, int port, int ai
+ static BOOL freerdp_tcp_is_hostname_resolvable(rdpContext* context, const char* hostname)
+ {
+ 	struct addrinfo* result = freerdp_tcp_resolve_host(hostname, -1, 0);
+-
++	WLog_INFO(TAG, "freerdp_tcp_is_hostname_resolvable: %s, result: %p", hostname, result);
+ 	if (!result)
+ 	{
+ 		freerdp_set_last_error_if_not(context, FREERDP_ERROR_DNS_NAME_NOT_FOUND);
+diff --git a/winpr/libwinpr/sspi/Kerberos/kerberos.c b/winpr/libwinpr/sspi/Kerberos/kerberos.c
+index bdc920df2..7da9e2dda 100644
+--- a/winpr/libwinpr/sspi/Kerberos/kerberos.c
++++ b/winpr/libwinpr/sspi/Kerberos/kerberos.c
+@@ -27,6 +27,7 @@
+ #include <string.h>
+ #include <errno.h>
+ #include <fcntl.h>
++#include <ctype.h>
+ 
+ #include <winpr/crt.h>
+ #include <winpr/sspi.h>
+@@ -277,27 +278,27 @@ static krb5_error_code KRB5_CALLCONV acquire_cred(krb5_context ctx, krb5_princip
+ 
+ 	if ((ret = krb5_init_creds_init(ctx, client, NULL, NULL, starttime, options, &init_ctx)))
+ 	{
+-		WLog_ERR(TAG, "error krb5_init_creds_init failed");
++		WLog_ERR(TAG, "error krb5_init_creds_init failed, code: %d", ret);
+ 		goto cleanup;
+ 	}
+ 
+ 	if ((ret = krb5_init_creds_set_password(ctx, init_ctx, password)))
+ 	{
+-		WLog_ERR(TAG, "error krb5_init_creds_set_password failed");
++		WLog_ERR(TAG, "error krb5_init_creds_set_password failed, code: %d", ret);
+ 		goto cleanup;
+ 	}
+ 
+ 	/* Get credentials */
+ 	if ((ret = krb5_init_creds_get(ctx, init_ctx)))
+ 	{
+-		WLog_ERR(TAG, "error while getting credentials");
++		WLog_ERR(TAG, "error while getting credentials, code: %d", ret);
+ 		goto cleanup;
+ 	}
+ 
+ 	/* Retrieve credentials */
+ 	if ((ret = krb5_init_creds_get_creds(ctx, init_ctx, &creds)))
+ 	{
+-		WLog_ERR(TAG, "error while retrieving credentials");
++		WLog_ERR(TAG, "error while retrieving credentials, code: %d", ret);
+ 		goto cleanup;
+ 	}
+ 
+@@ -372,35 +373,54 @@ static int init_creds(LPCWSTR username, size_t username_len, LPCWSTR password, s
+ 		goto cleanup;
+ 	}
+ 
+-	ret = krb5_get_default_realm(ctx, &lrealm);
++	pstr = strchr(lusername, '@');
+ 
+-	if (ret)
++	if (pstr != NULL)
+ 	{
+-		WLog_WARN(TAG, "could not get Kerberos default realm");
+-		goto cleanup;
+-	}
++		krb_name = strdup(lusername);
++		if (!krb_name)
++		{
++			WLog_ERR(TAG, "could not allocate memory for string rep of principal\n");
++			goto cleanup;
++		}
+ 
+-	lrealm_len = strlen(lrealm);
+-	lusername_len = strlen(lusername);
+-	krb_name_len = lusername_len + lrealm_len + 1; // +1 for '@'
+-	krb_name = calloc(krb_name_len + 1, sizeof(char));
++		pstr = strchr(krb_name, '@');
++		for(int i = 1; pstr[i]; i++)
++		{
++			pstr[i] = toupper(pstr[i]);
++		}
+ 
+-	if (!krb_name)
+-	{
+-		WLog_ERR(TAG, "could not allocate memory for string rep of principal\n");
+-		ret = -1;
+-		goto cleanup;
++		WLog_DBG(TAG, "krb_name from username: %s\n", krb_name);
+ 	}
++	else
++	{
++		ret = krb5_get_default_realm(ctx, &lrealm);
++		WLog_INFO(TAG, "default lrealm: %s", lrealm);
+ 
+-	/* Set buffer */
+-	_snprintf(krb_name, krb_name_len + 1, "%s@%s", lusername, lrealm);
+-#ifdef WITH_DEBUG_NLA
+-	WLog_DBG(TAG, "copied string is %s\n", krb_name);
+-#endif
+-	pstr = strchr(lusername, '@');
++		if (ret)
++		{
++			WLog_WARN(TAG, "could not get Kerberos default realm");
++			goto cleanup;
++		}
++
++		lrealm_len = strlen(lrealm);
++		lusername_len = strlen(lusername);
++		krb_name_len = lusername_len + lrealm_len + 1; // +1 for '@'
++		krb_name = calloc(krb_name_len + 1, sizeof(char));
++
++		if (!krb_name)
++		{
++			WLog_ERR(TAG, "could not allocate memory for string rep of principal\n");
++			ret = -1;
++			goto cleanup;
++		}
++
++		/* Set buffer */
++		_snprintf(krb_name, krb_name_len + 1, "%s@%s", lusername, lrealm);
++
++		WLog_DBG(TAG, "copied string is %s\n", krb_name);
++	}
+ 
+-	if (pstr != NULL)
+-		flags = KRB5_PRINCIPAL_PARSE_ENTERPRISE;
+ 
+ 	/* Use the specified principal name. */
+ 	ret = krb5_parse_name_flags(ctx, krb_name, flags, &principal);
+diff --git a/winpr/libwinpr/utils/wlog/wlog.c b/winpr/libwinpr/utils/wlog/wlog.c
+index 51afd1338..9429331ae 100644
+--- a/winpr/libwinpr/utils/wlog/wlog.c
++++ b/winpr/libwinpr/utils/wlog/wlog.c
+@@ -437,7 +437,7 @@ BOOL WLog_IsLevelActive(wLog* _log, DWORD _log_level)
+ 	if (level == WLOG_OFF)
+ 		return FALSE;
+ 
+-	return _log_level >= level;
++	return _log_level >= WLOG_TRACE;
+ }
+ 
+ BOOL WLog_SetStringLogLevel(wLog* log, LPCSTR level)

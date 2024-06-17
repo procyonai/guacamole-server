@@ -24,14 +24,16 @@
 # The Alpine Linux image that should be used as the basis for the guacd image
 ARG ALPINE_BASE_IMAGE=3.18.4
 FROM alpine:${ALPINE_BASE_IMAGE} AS builder
+# FROM ubuntu:22.04 AS builder
 
-# Install build dependencies
+# # Install build dependencies
 RUN apk add --no-cache                \
         autoconf                      \
         automake                      \
         build-base                    \
         cairo-dev                     \
         cmake                         \
+        cunit-dev                     \
         git                           \
         grep                          \
         libjpeg-turbo-dev             \
@@ -47,10 +49,29 @@ RUN apk add --no-cache                \
         krb5-libs \
         krb5 \
         krb5-dev \
+        krb5-server \
         libgss \
         krb5-conf \
-        musl-dev \
+        fuse3-dev \
+        dpkg \
+        wget \
         util-linux-dev
+
+# RUN apk add --no-cache opensc
+
+# RUN apt-get update && apt-get install -y build-essential git-core cmake libssl-dev  \
+#     libcups2-dev libxml2 libxml2-dev \
+#     libxrandr-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+#     libxi-dev libavutil-dev \
+#     libavcodec-dev libxtst-dev libgtk-3-dev libssh-dev libpulse-dev \
+#     libvte-2.91-dev libtelepathy-glib-dev libjpeg-dev \
+#     libgnutls28-dev \
+#     libappindicator3-dev intltool libsecret-1-dev libsystemd-dev \
+#     libsoup2.4-dev libsodium-dev libjson-glib-dev libpkcs11-helper1-dev \
+#     heimdal-dev
+#     # libkrad0 libkrb5-3 libkrad-dev libkadm5clnt-mit12 libk5crypto3 libkrb5-3 libgssapi-krb5-2
+
+# RUN apt-get install -y libswscale-dev libfuse3-dev libtool
 
 # Copy source to container for sake of build
 # ARG BUILD_DIR=/tmp/guacamole-server
@@ -69,7 +90,7 @@ ARG PREFIX_DIR=/opt/guacamole
 # library (these can be overridden at build time if a specific version is
 # needed)
 #
-ARG WITH_FREERDP='2\.11\.7'
+ARG WITH_FREERDP='3(\.\d+)+'
 ARG WITH_LIBSSH2='libssh2-\d+(\.\d+)+'
 ARG WITH_LIBTELNET='\d+(\.\d+)+'
 ARG WITH_LIBVNCCLIENT='LibVNCServer-\d+(\.\d+)+'
@@ -120,10 +141,15 @@ ARG FREERDP_OPTS="\
     -DWITH_XV=OFF \
     -DWITH_ZLIB=ON \
     -DWITH_KRB5=ON \
-    -DWLOG_LEVEL=1 \
     -DKRB5_TRACE=/dev/stdout \
     -DDEBUG_NLA=ON \
-    -DGSS_ROOT_FLAVOUR=MIT"
+    -DALLOW_IN_SOURCE_BUILD=ON \
+    -DWITH_OPENSC_PKCS11_LINKED=OFF \
+    -DWITH_PKCS11=OFF \
+    -DWITH_WINPR_DEPRECATED=ON \
+    -DWITH_FREERDP_DEPRECATED_COMMANDLINE=ON \
+    -DWITH_FREERDP_DEPRECATED=ON \
+    -DGSS_ROOT_FLAVOUR=HEIMDAL"
 
 ARG GUACAMOLE_SERVER_OPTS="\
     --disable-guaclog"
@@ -148,12 +174,11 @@ ARG LIBWEBSOCKETS_OPTS="\
     -DLWS_WITHOUT_TEST_SERVER_EXTPOLL=ON \
     -DLWS_WITH_STATIC=OFF"
 
-ARG BUILD_DIR=/tmp/guacamole-server
-
 # Build the dependencies for guacamole-server
+ARG BUILD_DIR=/tmp/guacamole-server
 RUN mkdir -p ${BUILD_DIR}/src/guacd-docker/bin
+
 COPY ./src/guacd-docker/bin/build-deps.sh ${BUILD_DIR}/src/guacd-docker/bin
-COPY ./src/guacd-docker/freerdp.patch ${BUILD_DIR}/freerdp.patch
 RUN ${BUILD_DIR}/src/guacd-docker/bin/build-deps.sh
 RUN rm -f ${BUILD_DIR}/src/guacd-docker/bin/build-deps.sh
 
@@ -167,74 +192,7 @@ RUN ${BUILD_DIR}/src/guacd-docker/bin/build-all.sh
 RUN ${BUILD_DIR}/src/guacd-docker/bin/list-dependencies.sh \
         ${PREFIX_DIR}/sbin/guacd               \
         ${PREFIX_DIR}/lib/libguac-client-*.so  \
-        ${PREFIX_DIR}/lib/freerdp2/*guac*.so   \
+        ${PREFIX_DIR}/lib/freerdp3/*guac*.so   \
         > ${PREFIX_DIR}/DEPENDENCIES
 
-# Use same Alpine version as the base for the runtime image
-FROM alpine:${ALPINE_BASE_IMAGE}
-
-#
-# Base directory for installed build artifacts. See also the
-# CMD directive at the end of this build stage.
-#
-# NOTE: Due to limitations of the Docker image build process, this value is
-# duplicated in an ARG in the first stage of the build.
-#
-ARG PREFIX_DIR=/opt/guacamole
-
-# Runtime environment
-ENV LC_ALL=C.UTF-8
-ENV LD_LIBRARY_PATH=${PREFIX_DIR}/lib
-ENV GUACD_LOG_LEVEL=info
-
-# Copy build artifacts into this stage
-COPY --from=builder ${PREFIX_DIR} ${PREFIX_DIR}
-
-# Bring runtime environment up to date and install runtime dependencies
-RUN apk add --no-cache                \
-        ca-certificates               \
-        ghostscript                   \
-        netcat-openbsd                \
-        shadow                        \
-        terminus-font                 \
-        ttf-dejavu                    \
-        ttf-liberation                \
-        ffmpeg-dev                    \
-        krb5-conf \
-        krb5-libs \
-        krb5-dev \
-        krb5 \
-        libgss \
-        musl-dev \
-        util-linux-login && \
-    xargs apk add --no-cache < ${PREFIX_DIR}/DEPENDENCIES
-
-# Checks the operating status every 5 minutes with a timeout of 5 seconds
-HEALTHCHECK --interval=5m --timeout=5s CMD nc -z 127.0.0.1 4822 || exit 1
-
-# Create a new user guacd
-ARG UID=1000
-ARG GID=10001
-RUN groupadd --gid $GID guacd
-RUN useradd --system --create-home --shell /bin/sh --uid $UID --gid $GID guacd
-
-# Create symlinks to procyon krb5.conf and hosts
-RUN mkdir -p /etc/procyon-tmp
-COPY ./src/guacd-docker/krb5.conf /etc/procyon-tmp/krb5.conf
-COPY ./src/guacd-docker/bin/entrypoint.sh /etc/procyon-tmp/entrypoint.sh
-COPY ./src/guacd-docker/bin/copy_hosts.sh /etc/procyon-tmp/copy_hosts.sh
-RUN chmod +x /etc/procyon-tmp/entrypoint.sh
-RUN chmod +x /etc/procyon-tmp/copy_hosts.sh
-
-# Expose the default listener port
-EXPOSE 4822
-
-#USER guacd
-
-# Start guacd, listening on port 0.0.0.0:4822
-#
-# Note the path here MUST correspond to the value specified in the 
-# PREFIX_DIR build argument.
-#
-ENTRYPOINT [ "/etc/procyon-tmp/entrypoint.sh" ]
-CMD KRB5_TRACE=/home/guacd/kerb /opt/guacamole/sbin/guacd -b 0.0.0.0 -L $GUACD_LOG_LEVEL -f
+RUN cat ${PREFIX_DIR}/DEPENDENCIES
