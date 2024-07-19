@@ -134,6 +134,54 @@ static int guac_recording_open(const char* path,
 
 }
 
+typedef struct stat Stat;
+
+static int do_mkdir(const char *path, mode_t mode)
+{
+    Stat            st;
+    int             status = 0;
+
+    if (stat(path, &st) != 0)
+    {
+        /* Directory does not exist. EEXIST for race condition */
+        if (mkdir(path, mode) != 0 && errno != EEXIST)
+            status = -1;
+    }
+    else if (!S_ISDIR(st.st_mode))
+    {
+        errno = ENOTDIR;
+        status = -1;
+    }
+
+    return(status);
+}
+
+static int mkpath(const char *path, mode_t mode)
+{
+    char           *pp;
+    char           *sp;
+    int             status;
+    char           *copypath = strdup(path);
+
+    status = 0;
+    pp = copypath;
+    while (status == 0 && (sp = strchr(pp, '/')) != 0)
+    {
+        if (sp != pp)
+        {
+            /* Neither root nor double slash in path */
+            *sp = '\0';
+            status = do_mkdir(copypath, mode);
+            *sp = '/';
+        }
+        pp = sp + 1;
+    }
+    if (status == 0)
+        status = do_mkdir(path, mode);
+    free(copypath);
+    return (status);
+}
+
 guac_recording* guac_recording_create(guac_client* client,
         const char* path, const char* name, int create_path,
         int include_output, int include_mouse, int include_touch,
@@ -143,7 +191,7 @@ guac_recording* guac_recording_create(guac_client* client,
 
     /* Create path if it does not exist, fail if impossible */
 #ifndef __MINGW32__
-    if (create_path && mkdir(path, S_IRWXU | S_IRGRP | S_IXGRP)
+    if (create_path && mkpath(path, S_IRWXU | S_IRGRP | S_IXGRP)
             && errno != EEXIST) {
 #else
     if (create_path && _mkdir(path) && errno != EEXIST) {
