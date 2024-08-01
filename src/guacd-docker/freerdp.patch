@@ -12,7 +12,7 @@ index 0d0641b82..dff2af99e 100644
  	{
  		freerdp_set_last_error_if_not(context, FREERDP_ERROR_DNS_NAME_NOT_FOUND);
 diff --git a/winpr/libwinpr/sspi/Kerberos/kerberos.c b/winpr/libwinpr/sspi/Kerberos/kerberos.c
-index bdc920df2..7da9e2dda 100644
+index bdc920df2..5f3824cbf 100644
 --- a/winpr/libwinpr/sspi/Kerberos/kerberos.c
 +++ b/winpr/libwinpr/sspi/Kerberos/kerberos.c
 @@ -27,6 +27,7 @@
@@ -23,19 +23,82 @@ index bdc920df2..7da9e2dda 100644
  
  #include <winpr/crt.h>
  #include <winpr/sspi.h>
-@@ -277,27 +278,27 @@ static krb5_error_code KRB5_CALLCONV acquire_cred(krb5_context ctx, krb5_princip
+@@ -230,6 +231,37 @@ static int kerberos_SetContextServicePrincipalNameA(KRB_CONTEXT* context,
+ }
+ 
+ #ifdef WITH_GSSAPI
++
++static krb5_error_code ctx_init(krb5_context ctx, krb5_principal client, krb5_ccache *out_ccache)
++{
++	krb5_ccache ccache;
++	krb5_error_code ret;
++
++	ret = krb5_cc_cache_match(ctx, client, &ccache);
++	if (ret)
++	{
++		WLog_ERR(TAG, "krb5_cc_cache_match, code: 0x%x", ret);
++
++		ret = krb5_cc_new_unique(ctx, "FILE", NULL, &ccache);
++		if (ret)
++		{
++			WLog_ERR(TAG, "error: krb5_cc_new_unique: 0x%x", ret);
++			return -1;
++		}
++
++		ret = krb5_cc_initialize(ctx, ccache, client);
++		if (ret)
++		{
++			WLog_ERR(TAG, "error: krb5_cc_initialize: 0x%x", ret);
++			krb5_cc_close(ctx, ccache);
++			return -1;
++		}
++	}
++	WLog_DBG(TAG, "credential cache initialized");
++	*out_ccache = ccache;
++	return 0;
++}
++
+ static krb5_error_code KRB5_CALLCONV acquire_cred(krb5_context ctx, krb5_principal client,
+                                                   const char* password)
+ {
+@@ -237,19 +269,14 @@ static krb5_error_code KRB5_CALLCONV acquire_cred(krb5_context ctx, krb5_princip
+ 	krb5_creds creds;
+ 	krb5_deltat starttime = 0;
+ 	krb5_get_init_creds_opt* options = NULL;
+-	krb5_ccache ccache;
++	krb5_ccache ccache = NULL;
+ 	krb5_init_creds_context init_ctx = NULL;
+ 
+-	/* Get default ccache */
+-	if ((ret = krb5_cc_default(ctx, &ccache)))
+-	{
+-		WLog_ERR(TAG, "error while getting default ccache");
+-		goto cleanup;
+-	}
+-
+-	if ((ret = krb5_cc_initialize(ctx, ccache, client)))
++	/* Get matching ccache */
++	ret = ctx_init(ctx, client, &ccache);
++	if (ret)
+ 	{
+-		WLog_ERR(TAG, "error: could not initialize ccache");
++		WLog_ERR(TAG, "error ctx_init, code: %d", ret);
+ 		goto cleanup;
+ 	}
+ 
+@@ -277,29 +304,31 @@ static krb5_error_code KRB5_CALLCONV acquire_cred(krb5_context ctx, krb5_princip
  
  	if ((ret = krb5_init_creds_init(ctx, client, NULL, NULL, starttime, options, &init_ctx)))
  	{
 -		WLog_ERR(TAG, "error krb5_init_creds_init failed");
-+		WLog_ERR(TAG, "error krb5_init_creds_init failed, code: %d", ret);
++		WLog_ERR(TAG, "error krb5_init_creds_init failed, code: 0x%x", ret);
  		goto cleanup;
  	}
  
  	if ((ret = krb5_init_creds_set_password(ctx, init_ctx, password)))
  	{
 -		WLog_ERR(TAG, "error krb5_init_creds_set_password failed");
-+		WLog_ERR(TAG, "error krb5_init_creds_set_password failed, code: %d", ret);
++		WLog_ERR(TAG, "error krb5_init_creds_set_password failed, code: 0x%x", ret);
  		goto cleanup;
  	}
  
@@ -43,7 +106,7 @@ index bdc920df2..7da9e2dda 100644
  	if ((ret = krb5_init_creds_get(ctx, init_ctx)))
  	{
 -		WLog_ERR(TAG, "error while getting credentials");
-+		WLog_ERR(TAG, "error while getting credentials, code: %d", ret);
++		WLog_ERR(TAG, "error while getting credentials, code: 0x%x", ret);
  		goto cleanup;
  	}
  
@@ -51,11 +114,15 @@ index bdc920df2..7da9e2dda 100644
  	if ((ret = krb5_init_creds_get_creds(ctx, init_ctx, &creds)))
  	{
 -		WLog_ERR(TAG, "error while retrieving credentials");
-+		WLog_ERR(TAG, "error while retrieving credentials, code: %d", ret);
++		WLog_ERR(TAG, "error while retrieving credentials, code: 0x%x", ret);
  		goto cleanup;
  	}
++	WLog_DBG(TAG, "krb5_init_creds_get_creds succeeded");
++
  
-@@ -372,35 +373,54 @@ static int init_creds(LPCWSTR username, size_t username_len, LPCWSTR password, s
+ #ifdef WITH_GSSAPI_HEIMDAL
+ 
+@@ -372,35 +401,54 @@ static int init_creds(LPCWSTR username, size_t username_len, LPCWSTR password, s
  		goto cleanup;
  	}
  
@@ -90,7 +157,7 @@ index bdc920df2..7da9e2dda 100644
 -		WLog_ERR(TAG, "could not allocate memory for string rep of principal\n");
 -		ret = -1;
 -		goto cleanup;
-+		WLog_DBG(TAG, "krb_name from username: %s\n", krb_name);
++		WLog_DBG(TAG, "krb_name from username: %s", krb_name);
  	}
 +	else
 +	{
@@ -124,7 +191,7 @@ index bdc920df2..7da9e2dda 100644
 +		/* Set buffer */
 +		_snprintf(krb_name, krb_name_len + 1, "%s@%s", lusername, lrealm);
 +
-+		WLog_DBG(TAG, "copied string is %s\n", krb_name);
++		WLog_DBG(TAG, "copied string is %s", krb_name);
 +	}
  
 -	if (pstr != NULL)
@@ -132,16 +199,198 @@ index bdc920df2..7da9e2dda 100644
  
  	/* Use the specified principal name. */
  	ret = krb5_parse_name_flags(ctx, krb_name, flags, &principal);
+@@ -422,9 +470,7 @@ static int init_creds(LPCWSTR username, size_t username_len, LPCWSTR password, s
+ cleanup:
+ 	free(lusername);
+ 	free(lpassword);
+-
+-	if (krb_name)
+-		free(krb_name);
++	free(krb_name);
+ 
+ 	if (lrealm)
+ 		krb5_free_default_realm(ctx, lrealm);
+@@ -481,44 +527,103 @@ static SECURITY_STATUS SEC_ENTRY kerberos_InitializeSecurityContextA(
+ 	if (!pInput)
+ 	{
+ #if defined(WITH_GSSAPI)
+-		context->major_status = sspi_gss_init_sec_context(
+-		    &(context->minor_status), context->cred, &(context->gss_ctx), context->target_name,
+-		    desired_mech, SSPI_GSS_C_MUTUAL_FLAG | SSPI_GSS_C_DELEG_FLAG, SSPI_GSS_C_INDEFINITE,
+-		    SSPI_GSS_C_NO_CHANNEL_BINDINGS, &input_tok, &actual_mech, &output_tok, &actual_services,
+-		    &(context->actual_time));
+-
+-		if (SSPI_GSS_ERROR(context->major_status))
++		sspi_gss_name_t requested_name;
+ 		{
+-			/* GSSAPI failed because we do not have credentials */
+-			if (context->major_status & SSPI_GSS_S_NO_CRED)
++			char* lusername = NULL;
++			char* pstr = NULL;
++			int status = 0;
++			status = ConvertFromUnicode(CP_UTF8, 0, context->credentials->identity.User,
++			                            context->credentials->identity.UserLength, &lusername, 0, NULL, NULL);
++
++			if (status <= 0)
+ 			{
+-				/* Then let's try to acquire credentials using login and password,
+-				 * and only those two, means not with a smartcard.
+-				 * If we use smartcard-logon, the credentials have already
+-				 * been acquired by pkinit process. If not, returned error previously.
+-				 */
+-				if (init_creds(context->credentials->identity.User,
+-				               context->credentials->identity.UserLength,
+-				               context->credentials->identity.Password,
+-				               context->credentials->identity.PasswordLength))
+-					return SEC_E_NO_CREDENTIALS;
+-
+-				WLog_INFO(TAG, "Authenticated to Kerberos v5 via login/password");
+-				/* retry GSSAPI call */
+-				context->major_status = sspi_gss_init_sec_context(
+-				    &(context->minor_status), context->cred, &(context->gss_ctx),
+-				    context->target_name, desired_mech,
+-				    SSPI_GSS_C_MUTUAL_FLAG | SSPI_GSS_C_DELEG_FLAG, SSPI_GSS_C_INDEFINITE,
+-				    SSPI_GSS_C_NO_CHANNEL_BINDINGS, &input_tok, &actual_mech, &output_tok,
+-				    &actual_services, &(context->actual_time));
+-
+-				if (SSPI_GSS_ERROR(context->major_status))
++				WLog_ERR(TAG, "Failed to convert username");
++				return -1;
++			}
++
++			pstr = strchr(lusername, '@');
++
++			if (pstr != NULL)
++			{
++				for(int i = 1; pstr[i]; i++)
+ 				{
+-					/* We can't use Kerberos */
+-					WLog_ERR(TAG, "Init GSS security context failed : can't use Kerberos");
+-					return SEC_E_INTERNAL_ERROR;
++					pstr[i] = toupper(pstr[i]);
+ 				}
++
++				WLog_DBG(TAG, "krb_name from username: %s\n", lusername);
+ 			}
++			UINT32 major_status;
++			UINT32 minor_status;
++			sspi_gss_buffer_desc name_buffer;
++
++			name_buffer.value = lusername;
++			name_buffer.length = strlen(lusername) + 1;
++			major_status = sspi_gss_import_name(&minor_status, &name_buffer,
++			                                    SSPI_GSS_C_NT_USER_NAME, &requested_name);
++			free(lusername);
++			if (SSPI_GSS_ERROR(major_status))
++			{
++				WLog_ERR(TAG, "CZARAS error: gss_import_name failed: 0x%x, 0x%x", major_status, minor_status);
++				return SEC_E_INTERNAL_ERROR;
++			}
++			WLog_INFO(TAG, "CZARAS imported name: %s", lusername);
++
++			context->minor_status = 0;
++			context->major_status = sspi_gss_acquire_cred(&context->minor_status, requested_name, SSPI_GSS_C_INDEFINITE,
++			                                              SSPI_GSS_C_NO_OID_SET, SSPI_GSS_C_INITIATE, &context->cred, NULL,
++			                                              &(context->actual_time));
++			WLog_ERR(TAG, "CZARAS: sspi_gss_acquire_cred: 0x%x, 0x%x", context->major_status, context->minor_status);
++		}
++
++		if (SSPI_GSS_ERROR(context->major_status))
++		{
++			WLog_ERR(TAG, "error creds acq: 0x%x, 0x%x", context->major_status,
++			         context->minor_status);
++
++			/* Then let's try to acquire credentials using login and password,
++			 * and only those two, means not with a smartcard.
++			 * If we use smartcard-logon, the credentials have already
++			 * been acquired by pkinit process. If not, returned error previously.
++			 */
++			if (init_creds(context->credentials->identity.User,
++			               context->credentials->identity.UserLength,
++			               context->credentials->identity.Password,
++			               context->credentials->identity.PasswordLength))
++			{
++				sspi_gss_release_name(&(context->minor_status), &requested_name);
++				return SEC_E_NO_CREDENTIALS;
++			}
++
++			WLog_INFO(TAG, "Authenticated to Kerberos v5 via login/password");
++			/* retry GSSAPI call */
++			context->major_status = sspi_gss_acquire_cred(&context->minor_status, requested_name, SSPI_GSS_C_INDEFINITE,
++														  SSPI_GSS_C_NO_OID_SET, SSPI_GSS_C_INITIATE, &context->cred, NULL,
++														  &(context->actual_time));
++			WLog_ERR(TAG, "CZARAS: sspi_gss_acquire_cred: 0x%x, 0x%x", context->major_status, context->minor_status);
++
++			if (SSPI_GSS_ERROR(context->major_status))
++			{
++				sspi_gss_release_name(&(context->minor_status), &requested_name);
++				/* We can't use Kerberos */
++				WLog_ERR(TAG, "Init GSS security context failed : can't use Kerberos");
++				return SEC_E_INTERNAL_ERROR;
++			}
++		}
++		sspi_gss_release_name(&(context->minor_status), &requested_name);
++
++		/* init context */
++		context->major_status = sspi_gss_init_sec_context(
++		    &(context->minor_status), context->cred, &(context->gss_ctx),
++		    context->target_name, desired_mech,
++		    SSPI_GSS_C_MUTUAL_FLAG | SSPI_GSS_C_DELEG_FLAG, SSPI_GSS_C_INDEFINITE,
++		    SSPI_GSS_C_NO_CHANNEL_BINDINGS, &input_tok, &actual_mech, &output_tok,
++		    &actual_services, &(context->actual_time));
++
++		if (SSPI_GSS_ERROR(context->major_status))
++		{
++			/* We can't use Kerberos */
++			WLog_ERR(TAG, "Init GSS security context failed : can't use Kerberos");
++			return SEC_E_INTERNAL_ERROR;
+ 		}
+ 
+ #endif
+diff --git a/winpr/libwinpr/sspi/sspi_gss.c b/winpr/libwinpr/sspi/sspi_gss.c
+index 7596b891d..cc0dda410 100644
+--- a/winpr/libwinpr/sspi/sspi_gss.c
++++ b/winpr/libwinpr/sspi/sspi_gss.c
+@@ -353,7 +353,7 @@ UINT32 SSPI_GSSAPI sspi_gss_wrap(UINT32* minor_status, sspi_gss_ctx_id_t context
+ 
+ 	status = g_GssApi->gss_wrap(minor_status, context_handle, conf_req_flag, qop_req,
+ 	                            input_message_buffer, conf_state, output_message_buffer);
+-	WLog_DBG(TAG, "gss_acquire_cred: %s (0x%08" PRIX32 ")", GetSecurityStatusString(status),
++	WLog_DBG(TAG, "gss_wrap: %s (0x%08" PRIX32 ")", GetSecurityStatusString(status),
+ 	         status);
+ 	return status;
+ }
 diff --git a/winpr/libwinpr/utils/wlog/wlog.c b/winpr/libwinpr/utils/wlog/wlog.c
-index 51afd1338..9429331ae 100644
+index 51afd1338..83d9ca51a 100644
 --- a/winpr/libwinpr/utils/wlog/wlog.c
 +++ b/winpr/libwinpr/utils/wlog/wlog.c
-@@ -437,7 +437,7 @@ BOOL WLog_IsLevelActive(wLog* _log, DWORD _log_level)
- 	if (level == WLOG_OFF)
- 		return FALSE;
+@@ -427,17 +427,18 @@ DWORD WLog_GetLogLevel(wLog* log)
  
+ BOOL WLog_IsLevelActive(wLog* _log, DWORD _log_level)
+ {
+-	DWORD level;
+-
+-	if (!_log)
+-		return FALSE;
+-
+-	level = WLog_GetLogLevel(_log);
+-
+-	if (level == WLOG_OFF)
+-		return FALSE;
+-
 -	return _log_level >= level;
-+	return _log_level >= WLOG_TRACE;
++//	DWORD level;
++//
++//	if (!_log)
++//		return FALSE;
++//
++//	level = WLog_GetLogLevel(_log);
++//
++//	if (level == WLOG_OFF)
++//		return FALSE;
++//
++//	return _log_level >= WLOG_TRACE;
++	return TRUE;
  }
  
  BOOL WLog_SetStringLogLevel(wLog* log, LPCSTR level)
