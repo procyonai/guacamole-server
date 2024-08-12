@@ -33,6 +33,5 @@ fi
 cp -f /etc/hosts /etc/procyon/hosts
 
 nohup sh -c /etc/procyon-tmp/copy_hosts.sh &
-su - guacd
 
-exec "$@"
+su guacd --command "$@"
