@@ -216,17 +216,24 @@ void guac_client_free(guac_client* client) {
     }
 
     if (client->recording_path != NULL) {
-        // sleep(1);
         char command[3000];
-        snprintf(command, sizeof(command), "touch %s.m4v.lock", client->recording_path);
+        snprintf(command, sizeof(command), "touch %s.mp4.lock", client->recording_path);
         guac_client_log(client, GUAC_LOG_INFO, "Running command \"%s\"", command);
         system(command);
 
-        snprintf(command, sizeof(command), "/opt/guacamole/bin/guacenc -s 1920x1080 -f %s", client->recording_path);
+        snprintf(command, sizeof(command), "/opt/guacamole/bin/guacenc -s 1600x900 -r 1000000 -f %s", client->recording_path);
         guac_client_log(client, GUAC_LOG_INFO, "Running command \"%s\"", command);
         system(command);
 
-        snprintf(command, sizeof(command), "rm %s.m4v.lock", client->recording_path);
+        snprintf(command, sizeof(command), "ffmpeg -i %s.m4v -c:v libx264 -preset medium -crf 23 -c:a aac -b:a 128k %s.mp4",
+                 client->recording_path, client->recording_path);
+        guac_client_log(client, GUAC_LOG_INFO, "Running command \"%s\"", command);
+        system(command);
+
+        snprintf(command, sizeof(command), "rm %s.m4v", client->recording_path);
+        guac_client_log(client, GUAC_LOG_INFO, "Running command \"%s\"", command);
+        system(command);
+        snprintf(command, sizeof(command), "rm %s.mp4.lock", client->recording_path);
         guac_client_log(client, GUAC_LOG_INFO, "Running command \"%s\"", command);
         system(command);
 

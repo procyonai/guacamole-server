@@ -125,8 +125,7 @@ ARG FREERDP_OPTS="\
     -DDEBUG_NLA=ON \
     -DGSS_ROOT_FLAVOUR=MIT"
 
-ARG GUACAMOLE_SERVER_OPTS="\
-    --disable-guaclog"
+ARG GUACAMOLE_SERVER_OPTS="--disable-guaclog"
 
 ARG LIBSSH2_OPTS="\
     -DBUILD_EXAMPLES=OFF \
@@ -200,6 +199,7 @@ RUN apk add --no-cache                \
         ttf-dejavu                    \
         ttf-liberation                \
         ffmpeg-dev                    \
+        ffmpeg                        \
         krb5-conf \
         krb5-libs \
         krb5-dev \
