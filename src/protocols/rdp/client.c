@@ -185,13 +185,6 @@ int guac_rdp_client_free_handler(guac_client* client) {
 
     /* Free parsed settings */
     if (rdp_client->settings != NULL) {
-        if (rdp_client->settings->recording_path != NULL &&
-            rdp_client->settings->recording_name != NULL) {
-            client->recording_path = malloc(2048);
-            snprintf(client->recording_path, 2048, "%s/%s",
-                rdp_client->settings->recording_path,
-                rdp_client->settings->recording_name);
-        }
         guac_rdp_settings_free(rdp_client->settings);
     }
 

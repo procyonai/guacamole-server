@@ -438,37 +438,3 @@ index 7596b891d..cc0dda410 100644
  	         status);
  	return status;
  }
-diff --git a/winpr/libwinpr/utils/wlog/wlog.c b/winpr/libwinpr/utils/wlog/wlog.c
-index 51afd1338..83d9ca51a 100644
---- a/winpr/libwinpr/utils/wlog/wlog.c
-+++ b/winpr/libwinpr/utils/wlog/wlog.c
-@@ -427,17 +427,18 @@ DWORD WLog_GetLogLevel(wLog* log)
- 
- BOOL WLog_IsLevelActive(wLog* _log, DWORD _log_level)
- {
--	DWORD level;
--
--	if (!_log)
--		return FALSE;
--
--	level = WLog_GetLogLevel(_log);
--
--	if (level == WLOG_OFF)
--		return FALSE;
--
--	return _log_level >= level;
-+//	DWORD level;
-+//
-+//	if (!_log)
-+//		return FALSE;
-+//
-+//	level = WLog_GetLogLevel(_log);
-+//
-+//	if (level == WLOG_OFF)
-+//		return FALSE;
-+//
-+//	return _log_level >= WLOG_TRACE;
-+	return TRUE;
- }
- 
- BOOL WLog_SetStringLogLevel(wLog* log, LPCSTR level)

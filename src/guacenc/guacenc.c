@@ -31,6 +31,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#define BUFFER_SIZE 100
+
 int main(int argc, char* argv[]) {
 
     int i;
@@ -40,10 +42,11 @@ int main(int argc, char* argv[]) {
     int width = GUACENC_DEFAULT_WIDTH;
     int height = GUACENC_DEFAULT_HEIGHT;
     int bitrate = GUACENC_DEFAULT_BITRATE;
+    char codec_name[BUFFER_SIZE] = "libx264";
 
     /* Parse arguments */
     int opt;
-    while ((opt = getopt(argc, argv, "s:r:f")) != -1) {
+    while ((opt = getopt(argc, argv, "s:r:fc:")) != -1) {
 
         /* -s: Dimensions (WIDTHxHEIGHT) */
         if (opt == 's') {
@@ -64,6 +67,13 @@ int main(int argc, char* argv[]) {
         /* -f: Force */
         else if (opt == 'f')
             force = true;
+
+        // codec name
+        else if (opt == 'c') {
+            strncpy(codec_name, optarg, BUFFER_SIZE - 1);
+            codec_name[BUFFER_SIZE - 1] = '\0'; // Ensure null-termination
+            printf("Argument: %s\n", codec_name);
+        }
 
         /* Invalid option */
         else {
@@ -108,7 +118,7 @@ int main(int argc, char* argv[]) {
 
         /* Generate output filename */
         char out_path[4096];
-        int len = snprintf(out_path, sizeof(out_path), "%s.m4v", path);
+        int len = snprintf(out_path, sizeof(out_path), "%s.mp4", path);
 
         /* Do not write if filename exceeds maximum length */
         if (len >= sizeof(out_path)) {
@@ -118,7 +128,7 @@ int main(int argc, char* argv[]) {
         }
 
         /* Attempt encoding, log granular success/failure at debug level */
-        if (guacenc_encode(path, out_path, "mpeg4",
+        if (guacenc_encode(path, out_path, codec_name,
                     width, height, bitrate, force)) {
             failures++;
             guacenc_log(GUAC_LOG_DEBUG,
@@ -145,6 +155,7 @@ int main(int argc, char* argv[]) {
 invalid_options:
 
     fprintf(stderr, "USAGE: %s"
+            " [-c FFMPEG_ENCODER]"
             " [-s WIDTHxHEIGHT]"
             " [-r BITRATE]"
             " [-f]"

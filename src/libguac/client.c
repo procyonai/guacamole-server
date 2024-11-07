@@ -215,31 +215,6 @@ void guac_client_free(guac_client* client) {
             guac_client_log(client, GUAC_LOG_ERROR, "Unable to close plugin: %s", dlerror());
     }
 
-    if (client->recording_path != NULL) {
-        char command[3000];
-        snprintf(command, sizeof(command), "touch %s.mp4.lock", client->recording_path);
-        guac_client_log(client, GUAC_LOG_INFO, "Running command \"%s\"", command);
-        system(command);
-
-        snprintf(command, sizeof(command), "/opt/guacamole/bin/guacenc -s 1600x900 -r 1000000 -f %s", client->recording_path);
-        guac_client_log(client, GUAC_LOG_INFO, "Running command \"%s\"", command);
-        system(command);
-
-        snprintf(command, sizeof(command), "ffmpeg -i %s.m4v -c:v libx264 -preset medium -crf 23 -c:a aac -b:a 128k %s.mp4",
-                 client->recording_path, client->recording_path);
-        guac_client_log(client, GUAC_LOG_INFO, "Running command \"%s\"", command);
-        system(command);
-
-        snprintf(command, sizeof(command), "rm %s.m4v", client->recording_path);
-        guac_client_log(client, GUAC_LOG_INFO, "Running command \"%s\"", command);
-        system(command);
-        snprintf(command, sizeof(command), "rm %s.mp4.lock", client->recording_path);
-        guac_client_log(client, GUAC_LOG_INFO, "Running command \"%s\"", command);
-        system(command);
-
-        free(client->recording_path);
-    }
-
     free(client->connection_id);
     free(client);
 }

@@ -23,6 +23,7 @@
 #include "video.h"
 
 #include <libavcodec/avcodec.h>
+#include <libavutil/opt.h>
 #include <libavutil/common.h>
 #include <libavutil/imgutils.h>
 #include <guacamole/client.h>
@@ -243,6 +244,10 @@ AVCodecContext* guacenc_build_avcodeccontext(AVStream* stream, const AVCodec* co
         context->time_base = time_base;
         stream->time_base = time_base;
     }
+
+    av_opt_set(context->priv_data, "preset", "veryslow", 0);
+    av_opt_set(context->priv_data, "crf", "28", 0);
+
     return context;
 #endif
 

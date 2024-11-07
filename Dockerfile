@@ -237,4 +237,4 @@ EXPOSE 4822
 # PREFIX_DIR build argument.
 #
 ENTRYPOINT [ "/etc/procyon-tmp/entrypoint.sh" ]
-CMD KRB5_TRACE=/home/guacd/kerb /opt/guacamole/sbin/guacd -b 0.0.0.0 -L $GUACD_LOG_LEVEL -f
+CMD KRB5_TRACE=/home/guacd/kerb WLOG_LEVEL=DEBUG /opt/guacamole/sbin/guacd -b 0.0.0.0 -L $GUACD_LOG_LEVEL -f

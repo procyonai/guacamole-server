@@ -45,7 +45,6 @@
 
 struct guac_client {
 
-    char* recording_path;
     /**
      * The guac_socket structure to be used to communicate with all connected
      * web-clients (users). Unlike the user-level guac_socket, this guac_socket
