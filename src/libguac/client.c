@@ -216,22 +216,38 @@ void guac_client_free(guac_client* client) {
     }
 
     if (client->recording_path != NULL) {
-        // sleep(1);
-        char command[3000];
-        snprintf(command, sizeof(command), "touch %s.m4v.lock", client->recording_path);
-        guac_client_log(client, GUAC_LOG_INFO, "Running command \"%s\"", command);
-        system(command);
+        // Log the recording path once
+        guac_client_log(client, GUAC_LOG_INFO, "Recording path: %s", client->recording_path);
 
-        snprintf(command, sizeof(command), "/opt/guacamole/bin/guacenc -s 1920x1080 -f %s", client->recording_path);
-        guac_client_log(client, GUAC_LOG_INFO, "Running command \"%s\"", command);
-        system(command);
+        // Build the command
+        int needed_size = snprintf(NULL, 0, "/opt/guacamole/bin/guacenc -s 1600x900 -r 1000000 -f %s", client->recording_path) + 1;
+        char* command = malloc(needed_size);
+        if (!command) {
+            guac_client_log(client, GUAC_LOG_ERROR, "Memory allocation failed for command");
+            free(client->recording_path);
+            return;
+        }
 
-        snprintf(command, sizeof(command), "rm %s.m4v.lock", client->recording_path);
-        guac_client_log(client, GUAC_LOG_INFO, "Running command \"%s\"", command);
-        system(command);
+        snprintf(command, needed_size, "/opt/guacamole/bin/guacenc -s 1600x900 -r 1000000 -f %s", client->recording_path);
 
+        // Log and execute the command
+        guac_client_log(client, GUAC_LOG_INFO, "Start: Running guacenc command");
+        int ret = system(command);
+        if (ret == -1) {
+            guac_client_log(client, GUAC_LOG_ERROR, "Failed to execute guacenc");
+        } else if (WIFEXITED(ret)) {
+            guac_client_log(client, GUAC_LOG_INFO, "guacenc exited with status %d", WEXITSTATUS(ret));
+        } else {
+            guac_client_log(client, GUAC_LOG_ERROR, "guacenc terminated abnormally");
+        }
+
+        guac_client_log(client, GUAC_LOG_INFO, "End: guacenc command execution completed");
+
+        // Clean up
+        free(command);
         free(client->recording_path);
     }
+
 
     free(client->connection_id);
     free(client);
