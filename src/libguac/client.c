@@ -219,29 +219,29 @@ void guac_client_free(guac_client* client) {
         // Log the recording path once
         guac_client_log(client, GUAC_LOG_INFO, "Recording path: %s", client->recording_path);
 
-        // Build the command
-        int needed_size = snprintf(NULL, 0, "/opt/guacamole/bin/guacenc -s 1600x900 -r 1000000 -f %s", client->recording_path) + 1;
+        // Build the compression command
+        int needed_size = snprintf(NULL, 0, "gzip -f %s", client->recording_path) + 1;
         char* command = malloc(needed_size);
         if (!command) {
-            guac_client_log(client, GUAC_LOG_ERROR, "Memory allocation failed for command");
+            guac_client_log(client, GUAC_LOG_ERROR, "Memory allocation failed for compression command");
             free(client->recording_path);
             return;
         }
 
-        snprintf(command, needed_size, "/opt/guacamole/bin/guacenc -s 1600x900 -r 1000000 -f %s", client->recording_path);
+        snprintf(command, needed_size, "gzip -f %s", client->recording_path);
 
-        // Log and execute the command
-        guac_client_log(client, GUAC_LOG_INFO, "Start: Running guacenc command");
+        // Log and execute the compression command
+        guac_client_log(client, GUAC_LOG_INFO, "Start: Compressing file at path %s", client->recording_path);
         int ret = system(command);
         if (ret == -1) {
-            guac_client_log(client, GUAC_LOG_ERROR, "Failed to execute guacenc");
+            guac_client_log(client, GUAC_LOG_ERROR, "Failed to execute gzip compression");
         } else if (WIFEXITED(ret)) {
-            guac_client_log(client, GUAC_LOG_INFO, "guacenc exited with status %d", WEXITSTATUS(ret));
+            guac_client_log(client, GUAC_LOG_INFO, "gzip compression exited with status %d", WEXITSTATUS(ret));
         } else {
-            guac_client_log(client, GUAC_LOG_ERROR, "guacenc terminated abnormally");
+            guac_client_log(client, GUAC_LOG_ERROR, "gzip compression terminated abnormally");
         }
 
-        guac_client_log(client, GUAC_LOG_INFO, "End: guacenc command execution completed");
+        guac_client_log(client, GUAC_LOG_INFO, "End: Compression command execution completed");
 
         // Clean up
         free(command);
